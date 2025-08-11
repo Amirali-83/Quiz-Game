@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Image Quiz</title>
+    <style>
+        :root{
+            --bg:#0f172a;--card:#111827;--accent:#10b981;--accent-2:#3b82f6;--text:#e5e7eb;--muted:#9ca3af;--danger:#ef4444;--correct:#10b981;--wrong:#ef4444
+        }
+        *{box-sizing:border-box}
+        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";background:linear-gradient(180deg,#0f172a,#0b1220);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+        .container{width:100%;max-width:800px}
+        .card{background:rgba(255,255,255,.03);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+        .title{font-size:22px;font-weight:700}
+        .progress{width:100%;height:10px;background:#1f2937;border-radius:999px;overflow:hidden}
+        .progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s ease}
+        .timer{font-variant-numeric:tabular-nums;background:#1f2937;border-radius:12px;padding:6px 10px}
+        .question-image{width:100%;border-radius:16px;height:280px;object-fit:cover;margin:12px 0;border:1px solid rgba(255,255,255,.08)}
+        .question-text{font-size:20px;font-weight:600;margin:12px 0 6px}
+        .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
+        .button{border:1px solid rgba(255,255,255,.08);background:#111827;padding:14px 16px;border-radius:14px;color:var(--text);cursor:pointer;text-align:left;transition:transform .02s ease,border-color .2s ease,background .2s ease}
+        .button:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.2)}
+        .button[disabled]{opacity:.6;cursor:not-allowed}
+        .button.correct{background:rgba(16,185,129,.15);border-color:var(--correct)}
+        .button.wrong{background:rgba(239,68,68,.15);border-color:var(--wrong)}
+        .footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+        .small{color:var(--muted);font-size:14px}
+        .cta{padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg,#1f2937,#111827);cursor:pointer}
+        .hidden{display:none}
+        .center{text-align:center}
+        .badge{font-size:12px;padding:4px 8px;border-radius:999px;background:#1f2937;border:1px solid rgba(255,255,255,.08)}
+        @media (max-width:600px){.choices{grid-template-columns:1fr}.question-image{height:200px}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card" role="region" aria-live="polite">
+        <div class="header">
+            <div class="title">Image Quiz</div>
+            <div class="timer" aria-live="polite"><span id="time">00</span>s</div>
+        </div>
+        <div class="progress" aria-hidden="true"><div class="progress-bar" id="progress"></div></div>
+        <img id="img" class="question-image" src="" alt="" />
+        <div class="question-text" id="question">Loading...</div>
+        <div class="choices" id="choices"></div>
+        <div class="footer">
+            <div class="small"><span id="qcount">0</span>/<span id="qtotal">0</span></div>
+            <div>
+                <button class="cta" id="skipBtn" title="Skip this question">Skip ⏭️</button>
+                <button class="cta" id="nextBtn" disabled>Next ➜</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card hidden" id="endScreen">
+        <div class="center">
+            <h2>Done! 🎉</h2>
+            <p class="small">Score: <strong id="score"></strong></p>
+            <p class="small">Best: <strong id="best"></strong></p>
+            <button class="cta" id="restartBtn">Play again</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // === Config: add your own questions here ===
+    const QUESTIONS = [
+        {
+            question: "Which planet is shown in the image?",
+            image: "https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?q=80&w=1200&auto=format&fit=crop",
+            alt: "A view of a planet with rings in space (illustration).",
+            choices: ["Mars","Saturn","Venus","Mercury"],
+            answerIndex: 1,
+            time: 15
+        },
+        {
+            question: "What animal is this?",
+            image: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?q=80&w=1200&auto=format&fit=crop",
+            alt: "Close-up of an orange tabby cat looking at the camera.",
+            choices: ["Fox","Cat","Lynx","Cheetah"],
+            answerIndex: 1,
+            time: 12
+        },
+        {
+            question: "Which flag is shown here?",
+            image: "https://images.unsplash.com/photo-1502913456296-1f9b6a1f87b6?q=80&w=1200&auto=format&fit=crop",
+            alt: "Red and white flag with a maple leaf.",
+            choices: ["Austria","Denmark","Canada","Switzerland"],
+            answerIndex: 2,
+            time: 10
+        },
+        {
+            question: "Which city skyline is this?",
+            image: "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?q=80&w=1200&auto=format&fit=crop",
+            alt: "Skyline with Empire State Building.",
+            choices: ["New York","Chicago","Toronto","London"],
+            answerIndex: 0,
+            time: 12
+        },
+        {
+            question: "What fruit is pictured?",
+            image: "https://images.unsplash.com/photo-1543352634-873c0f926d5f?q=80&w=1200&auto=format&fit=crop",
+            alt: "Sliced yellow fruit on a blue background.",
+            choices: ["Banana","Pineapple","Mango","Lemon"],
+            answerIndex: 3,
+            time: 10
+        }
+    ];
+
+    // === Game State ===
+    let idx = 0;
+    let score = 0;
+    let timer = null;
+    let timeLeft = 0;
+    let locked = false;
+
+    // === Elements ===
+    const imgEl = document.getElementById('img');
+    const qEl = document.getElementById('question');
+    const choicesEl = document.getElementById('choices');
+    const timeEl = document.getElementById('time');
+    const nextBtn = document.getElementById('nextBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const progressBar = document.getElementById('progress');
+    const qcountEl = document.getElementById('qcount');
+    const qtotalEl = document.getElementById('qtotal');
+    const endScreen = document.getElementById('endScreen');
+    const cards = document.querySelectorAll('.card');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const restartBtn = document.getElementById('restartBtn');
+
+    qtotalEl.textContent = QUESTIONS.length;
+
+    // === Helpers ===
+    function formatSec(s){ return String(s).padStart(2,'0'); }
+
+    function setProgress() {
+        const pct = ((idx) / QUESTIONS.length) * 100;
+        progressBar.style.width = pct + '%';
+    }
+
+    function startTimer(seconds) {
+        clearInterval(timer);
+        timeLeft = seconds;
+        timeEl.textContent = formatSec(timeLeft);
+        timer = setInterval(() => {
+            timeLeft--;
+            timeEl.textContent = formatSec(Math.max(0,timeLeft));
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                lockChoices();
+                revealCorrect();
+                nextBtn.disabled = false;
+            }
+        }, 1000);
+    }
+
+    function shuffle(array){
+        for (let i = array.length -1; i>0; i--){
+            const j = Math.floor(Math.random()* (i+1));
+            [array[i],array[j]] = [array[j],array[i]];
+        }
+        return array;
+    }
+
+    // === Render question ===
+    function renderQuestion() {
+        locked = false;
+        nextBtn.disabled = true;
+        setProgress();
+        qcountEl.textContent = idx + 1;
+
+        const q = QUESTIONS[idx];
+        imgEl.src = q.image;
+        imgEl.alt = q.alt || '';
+        qEl.textContent = q.question;
+
+        // Prepare choices with indexes to preserve correct mapping even after shuffle
+        const choices = q.choices.map((text, i) => ({text, i}));
+        shuffle(choices);
+
+        choicesEl.innerHTML = '';
+        choices.forEach(({text, i}) => {
+            const btn = document.createElement('button');
+            btn.className = 'button';
+            btn.setAttribute('role', 'button');
+            btn.setAttribute('tabindex', '0');
+            btn.dataset.index = i; // original index
+            btn.textContent = text;
+            btn.addEventListener('click', () => selectChoice(i, btn));
+            choicesEl.appendChild(btn);
+        });
+
+        startTimer(q.time ?? 15);
+    }
+
+    function lockChoices() {
+        locked = true;
+        document.querySelectorAll('.button').forEach(b => b.disabled = true);
+    }
+
+    function revealCorrect() {
+        const q = QUESTIONS[idx];
+        const buttons = Array.from(document.querySelectorAll('.button'));
+        buttons.forEach(btn => {
+            const originalIndex = Number(btn.dataset.index);
+            if (originalIndex === q.answerIndex) {
+                btn.classList.add('correct');
+            }
+        });
+    }
+
+    function selectChoice(choiceOriginalIndex, btn){
+        if (locked) return;
+        lockChoices();
+        const q = QUESTIONS[idx];
+        const isCorrect = choiceOriginalIndex === q.answerIndex;
+        if (isCorrect) {
+            score++;
+            btn.classList.add('correct');
+        } else {
+            btn.classList.add('wrong');
+            revealCorrect();
+        }
+        clearInterval(timer);
+        nextBtn.disabled = false;
+    }
+
+    function nextQuestion(){
+        idx++;
+        if (idx >= QUESTIONS.length) {
+            endGame();
+            return;
+        }
+        choicesEl.innerHTML = '';
+        document.querySelectorAll('.button').forEach(b => b.classList.remove('correct','wrong'));
+        renderQuestion();
+    }
+
+    function skipQuestion(){
+        if (locked) return;
+        lockChoices();
+        revealCorrect();
+        clearInterval(timer);
+        nextBtn.disabled = false;
+    }
+
+    function endGame(){
+        cards[0].classList.add('hidden');
+        endScreen.classList.remove('hidden');
+        scoreEl.textContent = `${score} / ${QUESTIONS.length}`;
+        const best = Math.max(score, Number(localStorage.getItem('bestScore')||0));
+        localStorage.setItem('bestScore', String(best));
+        bestEl.textContent = `${best} / ${QUESTIONS.length}`;
+    }
+
+    function restart(){
+        score = 0;
+        idx = 0;
+        endScreen.classList.add('hidden');
+        cards[0].classList.remove('hidden');
+        renderQuestion();
+    }
+
+    // === Wire up ===
+    nextBtn.addEventListener('click', nextQuestion);
+    skipBtn.addEventListener('click', skipQuestion);
+    restartBtn.addEventListener('click', restart);
+
+    // === Start ===
+    renderQuestion();
+</script>
+</body>
+</html>
